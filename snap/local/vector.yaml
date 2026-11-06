@@ -1,0 +1,13 @@
+data_dir: /var/snap/vector/common/data
+
+# Emit Vector's own metrics to the service log until a pipeline is configured.
+sources:
+  internal:
+    type: internal_metrics
+
+sinks:
+  console:
+    type: console
+    inputs: [internal]
+    encoding:
+      codec: json

@@ -1,0 +1,78 @@
+name: vector
+title: Vector
+base: core24
+adopt-info: vector
+license: MPL-2.0
+website: https://vector.dev
+source-code: https://github.com/vectordotdev/vector
+summary: Collect, transform, and route logs, metrics, and traces
+description: |
+  Vector is an observability data pipeline. It collects, transforms, and
+  routes logs, metrics, and traces to your chosen destinations.
+
+grade: stable
+confinement: strict
+
+platforms:
+  amd64:
+
+apps:
+  vector:
+    command: bin/vector
+    plugs: [network, network-bind, home, log-observe, system-observe]
+  service:
+    command: bin/vector --config $SNAP_DATA/vector.yaml
+    daemon: simple
+    install-mode: disable
+    restart-condition: on-failure
+    plugs: [network, network-bind, log-observe, system-observe]
+
+parts:
+  vector:
+    plugin: rust
+    source: https://github.com/vectordotdev/vector.git
+    source-tag: v0.61.0
+    source-depth: 1
+    rust-channel: stable
+    rust-no-default-features: true
+    rust-features: [target-x86_64-unknown-linux-gnu]
+    rust-cargo-parameters: [--bin, vector]
+    build-packages:
+      - build-essential
+      - clang
+      - cmake
+      - libclang-dev
+      - libssl-dev
+      - libsasl2-dev
+      - pkg-config
+      - protobuf-compiler
+      - python3
+      - autoconf
+      - automake
+      - libtool
+      - zlib1g-dev
+    stage-packages:
+      - ca-certificates
+      - libsasl2-2
+      - libsasl2-modules
+      - libsasl2-modules-gssapi-mit
+    build-environment:
+      - CARGO_BUILD_JOBS: "4"
+      - CFLAGS: -g0 -O3
+      # Match upstream's workaround for bundled Kerberos support.
+      - ac_cv_header_keyutils_h: "no"
+    override-pull: |
+      craftctl default
+      craftctl set version="$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["version"])')"
+    override-build: |
+      craftctl default
+      install -Dm644 LICENSE "$CRAFT_PART_INSTALL/share/vector/LICENSE"
+      cp -r licenses "$CRAFT_PART_INSTALL/share/vector/"
+      install -m644 NOTICE LICENSE-3rdparty.csv "$CRAFT_PART_INSTALL/share/vector/"
+
+  runtime:
+    plugin: dump
+    source: snap/local
+    organize:
+      vector.yaml: etc/vector/vector.yaml
+      install: snap/hooks/install

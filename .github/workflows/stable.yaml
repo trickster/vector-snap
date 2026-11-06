@@ -1,0 +1,86 @@
+name: Stable snap
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish to the versioned stable channel
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stable-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest Vector release
+        id: channel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+
+          UPSTREAM = "vectordotdev/vector"
+          RECIPE = Path("snap/snapcraft.yaml")
+          STABLE_TAG = r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+          SOURCE_TAG = r"(?m)^    source-tag: .+$"
+
+          # Select one release for both the source and publish channel.
+          tag = subprocess.check_output(
+              ["gh", "api", f"repos/{UPSTREAM}/releases/latest", "--jq", ".tag_name"],
+              text=True,
+          ).strip()
+          version = re.fullmatch(STABLE_TAG, tag)
+          if version is None:
+              raise SystemExit(f"Expected a stable vMAJOR.MINOR.PATCH tag, got {tag!r}")
+
+          recipe, count = re.subn(SOURCE_TAG, f"    source-tag: {tag}", RECIPE.read_text())
+          if count != 1:
+              raise SystemExit("Expected one source-tag in the snap recipe")
+
+          RECIPE.write_text(recipe)
+          channel = f"{version[1]}.{version[2]}/stable"
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"release={channel}\n")
+
+          print(f"Vector {tag}: {channel}")
+          PY
+
+      - name: Build snap
+        id: build
+        uses: snapcore/action-build@v1
+        with:
+          build-info: true
+          snapcraft-channel: latest/stable
+
+      - name: Test snap
+        env:
+          SNAP_FILE: ${{ steps.build.outputs.snap }}
+        run: |
+          sudo snap install --dangerous "$SNAP_FILE"
+          snap run vector --version
+          sudo snap run vector validate /var/snap/vector/current/vector.yaml
+          snap services vector | grep -E '^vector.service +disabled +inactive'
+
+      - name: Publish stable snap
+        if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.STORE_LOGIN }}
+        with:
+          snap: ${{ steps.build.outputs.snap }}
+          release: ${{ steps.channel.outputs.release }}

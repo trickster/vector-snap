@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+# Keep configuration per revision and buffer data across refreshes.
+mkdir -p "$SNAP_COMMON/data"
+cp "$SNAP/etc/vector/vector.yaml" "$SNAP_DATA/vector.yaml"
