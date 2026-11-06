@@ -72,9 +72,9 @@ jobs:
           SNAP_FILE: ${{ steps.build.outputs.snap }}
         run: |
           sudo snap install --dangerous "$SNAP_FILE"
-          snap run vector --version
-          sudo snap run vector validate /var/snap/vector/current/vector.yaml
-          snap services vector | grep -E '^vector.service +disabled +inactive'
+          snap run kodoroki-vector.vector --version
+          sudo snap run kodoroki-vector.vector validate /var/snap/kodoroki-vector/current/vector.yaml
+          snap services kodoroki-vector | grep -E '^kodoroki-vector\.service +disabled +inactive'
 
       - name: Publish stable snap
         if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main'

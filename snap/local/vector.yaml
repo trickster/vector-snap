@@ -1,4 +1,4 @@
-data_dir: /var/snap/vector/common/data
+data_dir: /var/snap/kodoroki-vector/common/data
 
 # Emit Vector's own metrics to the service log until a pipeline is configured.
 sources:
